@@ -1,0 +1,86 @@
+<!-- <html> -->
+<head>
+    <title>Demonstrating Scala Type Classes</title>
+</head>
+<body>
+
+<div>
+    <h2>Type Classes in Scala</h2>
+    <p>
+        This tutorial contains a few samples that details how type classes might be useful
+        in Scala, as well as some tricks and tips you might not have seen before.
+    </p>
+
+    <p>
+        Type classes are a particularly useful abstraction in languages that have mechanisms
+        to support them. They are a way of adding behavior to standard data classes (like
+        case class domain objects and collections, for example) without needing to alter
+        those classes directly, instead implicitly (in Scala at least) providing definitions
+        of a type class for the type you want to add the behavior to. This is sometimes called
+        ad-hoc polymorphism and more detail on the theory can be found
+        <a href="http://en.wikipedia.org/wiki/Type_class">on wikipedia</a>.
+    </p>
+
+    <p>
+        There are many good libraries already available for Scala that take advantage of
+        type classes for this kind of usage. For example, the
+        <a href="http://www.playframework.com/documentation/2.1.1/ScalaJsonCombinators">Play
+            Framework's own JSON support</a> makes use of type classes like Format, Reads and Writes
+        to make it easy to convert to and from JSON. The real advantage of type-classes over
+        more traditional approaches to this problem like reflection is that more issues (like
+        missing conversions, for example) can be detected by the compiler rather than just
+        resulting in errors at runtime.
+    </p>
+
+    <p>
+        For these examples, we will be using <a href="https://github.com/spray/spray-json">Spray's
+        JSON library</a> rather than the Play Framework's
+        mainly because the Spray JSON library is smaller and written very clearly, with only
+        one purpose in mind - to convert items to and from JSON with a minimum of effort.
+        If you are already using Play on a project then the tips and tricks demonstrated here
+        can easily be adapted. There is also an alternative implementation which demonstrates a
+        simple (and limited) example of targeting XML rather than JSON for the output as well.
+    </p>
+
+    <p>Let's take a look at the code, move to the next page to continue the tutorial.</p>
+</div>
+<div>
+    <h2>JSON Savable Type Class</h2>
+    <p>
+        Let's look at a type class definition, starting with the
+        <a href="#code/src/main/scala/com/example/save/json/Savable.scala" class="shortcut">JSON
+            Savable</a> first.
+    </p>
+    <p>
+        The <code>Savable</code> defined in the json package is the definition of something that when provided,
+        will give a String output for a given item input, in this case we will implement the
+        string output to provide JSON for the item. First let's look at the <code>Savable</code>
+        class at the top of this file.
+    </p>
+    <p>
+        The <code>Savable</code> class is parameterized with a single generic type. This is part of
+        the nature of a type class - it only makes sense to have one defined with a type parameter
+        because when you extend it or otherwise implement it, you want to do so for a specific type
+        so that it provides the extra functionality for that type.
+    </p>
+    <p>
+        The <pre><code>abstract class Savable[RECORD <: Product : ClassManifest]</code></pre> definition has
+        a fair amount going on in the type department so let's pull it apart. The first thing is that
+        the generic is called <code>RECORD</code>. I used a longer name to make things clearer, but
+        it's quite common to see individual letters used to represent type parameters (I think because
+        programmers are lazy by nature :-) ).
+    </p>
+    <p>
+        <pre><code>RECORD <: Product</code></pre> means that the RECORD parameter is bound to extend
+        <a href="http://www.scala-lang.org/api/current/#scala.Product">Product</a>. Bound in this
+        case means that the Scala compiler enforces this constraint, and it means that you know
+        any item of type RECORD will provide the methods defined on Product. Product is a
+        trait that is mixed in to a number of Scala classes and implementation including Tuples
+        and case classes, and it allows certain operations on the data inside those classes.
+    </p>
+
+</div>
+
+
+</body>
+</html>
