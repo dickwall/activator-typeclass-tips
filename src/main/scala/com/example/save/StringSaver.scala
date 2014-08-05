@@ -11,5 +11,6 @@ import com.example.save.json._
  * Provide a simple utility class to allow saving of anything savable into its string representation.
  */
 object StringSaver {
-  def saveToString[S <: Product : Savable](item: S): String = implicitly[Savable[S]].saveToString(item)
+  def saveToString[S <: Product : Savable](item: S): String = 
+    implicitly[Savable[S]].saveToString(item)
 }

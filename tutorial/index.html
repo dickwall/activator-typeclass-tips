@@ -45,7 +45,7 @@
     <p>Let's take a look at the code, move to the next page to continue the tutorial.</p>
 </div>
 <div>
-    <h2>JSON Savable Type Class</h2>
+    <h2>JSON Savable Type Class (1)</h2>
     <p>
         Let's look at a type class definition, starting with the
         <a href="#code/src/main/scala/com/example/save/json/Savable.scala" class="shortcut">JSON
@@ -78,9 +78,320 @@
         trait that is mixed in to a number of Scala classes and implementation including Tuples
         and case classes, and it allows certain operations on the data inside those classes.
     </p>
+    <p>
+        <code><:</code> is known as an upper bound (it means that the RECORD generic is bound at the upper
+        end by Product. I like to use mnemonics to read code and understand it, and since the bound has a
+        "less than" operator in it, I read it as RECORD implements <em>at least</em> Product.
+    </p>
+</div>
+<div>
+    <h2>JSON Savable Type Class (2)</h2>
+    <p>
+        There is another type bound on the generic, the <code>: ClassManifest</code>.
+    </p>
+    <p>
+        <code>: T</code>
+        is known as a context bound, and it means that there must be a typeclass for RECORD (in this case)
+        that the compiler can see and use implicitly (or you may choose to fill it in explicitly if you
+        like pain). <code>: ClassManifest</code> is the same as having an implicit parameter of type
+        <code>ClassManifest[RECORD]</code>, like this:
+        <pre><code>abstract class Savable[RECORD <: Product](implicit ev1: ClassManifest[RECORD])</code></pre>
+        the context bound form is just shorthand for that implicit (but it also means it doesn't have
+        a name, so we need to get that ClassManifest using the implicitly method:
+        <pre><code>val ev1 = implicitly[ClassManifest[RECORD]]</code></pre> is an example of doing that,
+        and assigns it to the same ev1 value as used in the implicit parameter example.
+    </p>
+    <p>
+        Manifests, ClassManifests and ClassTags are typeclasses but they are also known by the Scala
+        compiler and exhibit very useful behavior. When Scala sees a Manifest or Tag typeclass specified
+        implicitly, it creates one for the type being passed in, so that you can get type information
+        that can be used at runtime. Manifests are deep (i.e. for complex container types, they hold
+        all of the information of the type parameters in the container type as well) while ClassTags are
+        shallow (like just having the classOf[RECORD] information filled in by the compiler.
+    </p>
+    <p>
+        The general rule of thumb is to use ClassTags (which are lighter and faster) unless you need the
+        deep information of a Manifest. ClassManifest (used here) is actually deprecated, but right now
+        the Spray JSON library still uses them, so I had to use them in this example. Typically use a
+        ClassTag instead of a ClassManifest.
+    </p>
 
 </div>
-
+<div>
+    <h2>JSON Savable Type Class (3)</h2>
+    <p>
+        Within the definition of the abstract Savable class, we have a few interesting things as well:
+    </p>
+    <p>
+        <pre><code>implicit val saveableAdapter: Savable[RECORD] = this</code></pre> bears some
+        explanation. The Savable class, and it's subclasses Savable1..SavableN (also abstract) are
+        designed to be extended by companion objects to classes. Implicits inside of the companion
+        object for a class are automatically available to the compiler to be able to use to satisfy
+        context bounds, so by setting an <code>implicit val</code>of type <code>Savable[RECORD]</code>
+        and using a self reference <code>this</code> as the value, we make the companion object also
+        satisfy the requirement for an implicit Savable within itself. It's a neat trick that works
+        fairly well in practice and lets you defined more streamlined type classes, as we will see
+        in a minute.
+    </p>
+    <p>
+        <pre><code>implicit val jsonFormat: JsonFormat[RECORD]</code></pre> is a pure abstract, and
+        means that any implementing class must supply a JsonFormat type class for RECORD as a part of
+        its implementation contract. These will be filled in by Savable1..Savable2, etc. and need to
+        be a different implementation for each based on the arity of the class represented. Having this
+        requirement in the Savable class means that any Savable also must have a JsonFormat defined for it,
+        an implementation detail that is useful for our purposes. However if Savable meant something other
+        than JSON (e.g. XML, SQL, etc.) then we could drop that requirement and add another. The point is
+        that we have raised the abstraction level from a specific format or serialization to something that
+        is simply "Savable".
+    </p>
+    <p>
+        The final two lines just give us a handy string name for the RECORD based on its Manifest
+        information, and a pretty toString for it so it's easy to spot in diagnostic messages, stack
+        traces and so on.
+    </p>
+</div>
+<div>
+    <h2>Savable1, Savable2 .. SavableN Type Classes</h2>
+    <p>
+        Also supplied in <a href="#code/src/main/scala/com/example/save/json/Savable.scala"
+          class="shortcut">Savable.scala</a> are the definitions of the
+        <code>Savable1, Savable2, Savable3</code> and <code>Savable4</code> classes.
+        For a real system these would probably go higher
+        (all the way up to 22 is conventional), and are prime candidates for either some kind
+        of code generation or macro generation.
+    </p>
+    <p>
+        Let's take a look at <code>Savable2</code> to choose just one of them, the rest use the same
+        principle other than the arity changing.
+    </p>
+    <p>
+        <pre><code>abstract class Savable2[A : JsonFormat, B : JsonFormat,
+    RECORD <: Product : ClassManifest] extends Savable[RECORD] {</code></pre> is the definition of
+    the class. It is still abstract, since we don't want people creating new instance of this
+    class directly. Instead it should be extended by a companion object, and ideally one for a
+    <code>case class</code>. More on why in a moment.
+    </p>
+    <p>
+        Notice that this Savable2 has 3 type parameters, A, B and RECORD. RECORD is the type for
+        which this is the companion (this might make more sense when you see the definition later).
+        The other types, A and B are any types (they will actually need to agree with the types
+        used for those field positions in the case class) and they have a context bound on them also
+        which is that they must have a JsonFormat supplied as well. This kind of "recursive" context
+        bounding is very useful for ensuring that all the types, all the way down, can be converted to
+        JSON. If you remember, creating a Savable also means that a JsonFormat must be available for
+        that type, so it means we can nest Savables into each other as well as other JsonFormat types
+        (including types like Int, Double, String, Boolean, etc.)
+    </p>
+    <p>
+        Notice also that each of the SavableNs extend Savable[RECORD] so that we can refer to just
+        a generic Savable wherever we want to use it, rather than Savable2 or Savable3.
+    </p>
+</div>
+<div>
+    <h2>Implementation of Savable2</h2>
+    <p>
+        The body of Savable2 has two items defined in it:
+        <pre><code>
+def apply(f1: A, f2: B): RECORD
+val jsonFormat: JsonFormat[RECORD] = jsonFormat2(this.apply)
+        </code></pre>
+    </p>
+    <p>
+        The first line states that we must have an <code>apply</code> method that takes two parameters,
+        one of type A and one of type B. The definition of a <code>case class</code> is such that apply
+        (and unapply) methods are created with suitable signatures. This means that if we extend Savable2
+        in the companion object of a case class arity 2, we will satisfy that requirement. It also means
+        you can use Savable2 for non-case classes, but if you do you will be required to supply a suitable
+        apply method.
+    </p>
+    <p>
+        The second line is the implementation of the JsonFormat for RECORD. Spray JSON supplies handy
+        helper methods for anything that has a suitable apply method (i.e this.apply), in this case
+        <code>jsonFormat2</code> but for other arities, change the number. You could also supply a
+        more explicit version of this JsonFormat[RECORD] which you may need to do for more customized
+        behavior. Take a look at the <a href="https://github.com/spray/spray-json">Spray JSON</a>
+        documentation for more options on providing a JsonFormat.
+    </p>
+    <p>
+        Of course, all of this is a minimal example and a real implementation will probably have a lot
+        more code in the Savables, but the point is that this code is only written once and will be
+        available to any companion object that extends the SavableN class, meaning you can pack a lot
+        of useful behavior into a single line definition.
+    </p>
+    <p>
+        Speaking of single line definitions, let's take a look at how we can use these Savables.
+    </p>
+</div>
+<div>
+    <h2>Using the Savables</h2>
+    <p>
+        Now take a look at
+        <a href="#code/src/main/scala/com/example/save/ExampleDomainObjects.scala"
+           class="shortcut">ExampleDomainObjects.scala</a>. Here you will see a number of
+        definitions like this:
+        <pre><code>
+case class Dog(name: String, age: Int, weight: Float)
+object Dog extends Savable3[String, Int, Float, Dog]
+        </code></pre>
+    </p>
+    <p>
+        The first line is the definition of a pure case class, one that has fields for name, age
+        and weight of a dog, types String, Int and Float respectively. There is nothing special
+        about this definition other than that we have made it a case class (primarily so it is a
+        <code>Product</code> and has <code>apply</code> and <code>unapply</code> methods generated
+        for us in the companion object
+    </p>
+    <p>
+        The next line is the definition of our companion object for Dog. The resulting companion
+        object will still have <code>apply</code> and <code>unapply</code> methods generated for us, and will still have
+        the <code>Product</code> trait supported, but we are also going to include all of our Savable
+        logic as well, by extending the <code>Savable3</code> abstract class as well.
+    </p>
+    <p>
+        <code>Savable3</code> takes 4 type parameters. The first three <em>must</em> match the types
+        of the fields in the case class (i.e. <code>String, Int</code> and <code>Float</code> and the
+        last must be the type we are defining the Savable for (i.e. <code>Dog</code>). This is a bit of
+        boilerplate, but it's not much (not for everything we get) and the compiler will ensure you get
+        it right. Try changing the Int to a Double for example, to see what the compiler says, then
+        change it back to get everything compiling again.
+    </p>
+    <p>
+        This one line of code makes our Dog case class a Savable thing. It does mean that we have some
+        concept of Savable in our domain objects now, so they are no longer completely pure, but as we will
+        see in a minute, Savable itself is pretty general and may have alternative implementations, e.g.
+        XML instead of JSON, if we decide we want to switch the storage formats.
+    </p>
+    <p>
+        If you are really worried about keeping the domain object pure, then don't supply the Savable
+        definition in the companion object but just put it somewhere else that the compiler can find it
+        implicitly. However, if you aren't too worried about the domain object declaring itself to be
+        <code>Savable</code> then this is about the minimum of boilerplate code that you can get short of
+        using macros to generate the companions.
+    </p>
+</div>
+<div>
+    <h2>See Dog Run! Run Dog, Run!</h2>
+    <p>
+        Enough of all this theory! Does it work or doesn't it?
+    </p>
+    <p>
+        <a href="#code/src/main/scala/com/example/save/Demo.scala"
+        class="shortcut">The Demo App</a> which creates a Dog, Person and Fruit, and then uses the
+        <code>StringSaver.saveToString</code> method to make a string out of it and print it to the
+        console. We will look at <code>saveToString</code> in a moment, but for now, click on Run over
+        on the left side of the activator window, and hit the Start button.
+    </p>
+    <p>
+        You should see three lines of JSON created in the output for the run. It works!
+    </p>
+    <p>
+        Let's take a look at that <a href="#code/src/main/scala/com/example/save/StringSaver.scala"
+        class="shortcut">StringSaver.saveToString</a> definition. It's pretty simple:
+    </p>
+    <p>
+        <pre><code>
+def saveToString[S <: Product : Savable](item: S): String =
+  implicitly[Savable[S]].saveToString(item)
+        </code></pre>
+    Remember that in order to be <code>Savable</code>, a type has to implement at least
+    <code>Product</code></code> and this bound must be captured here or it won't compile
+    (of course we could have implemented <code>Savable</code> without the <code>Product</code>
+    bound, but it would have been less cool then). Other than that, the method is very straightforward:
+    it will take any type S that is a Product and has a Savable implicit type class supplied for it.
+    The implicit is then looked up (using <code>implicitly</code> and used to call the <code>saveToString</code>
+    method on <code>Savable</code> to do the actual work.
+    </p>
+</div>
+<div>
+    <h2>Switching the Savable Implementation</h2>
+    <p>
+        Now comes the real payoff (well, if single line serialization to JSON definitions were not enough).
+        What about if we want to switch the format from JSON to something else, say XML?
+    </p>
+    <p>
+        Take a look at
+        <a href="#code/src/main/scala/com/example/save/xml/Savable.scala"
+           class="shortcut">Savable in the xml package</a> to see an alternative implementation of
+        <code>Savable</code>, this one targeting XML strings instead of JSON.
+        Ponder the code for a while and notice some of the differences. This is a quick and dirty example
+        and not intended to be useful XML serialization (which would no doubt be a lot more intricate
+        and cover more of the corner cases).
+    </p>
+    <p>
+        You will notice that the SavableN definitions don't really
+        add any value, they are provided for API compatibility with the JSON versions, and don't
+        improve on the implementation of Savable in any way for XML. Also, there is a limitation in the
+        XML implementation compared to the JSON one. In the JSON one, fields can be any valid JSON-able
+        field themselves, but the XML one just assumes that any field will be represented by its toString
+        method. The exercise of making a more flexible and complete type class implementation for XML is
+        left to you, and if you really want to understand type class implementations better I heartily
+        recommend you try it out.
+    </p>
+    <p>
+        To switch to the xml implementation, you need to make changes in a couple of the source files:
+    </p>
+    <p>
+        In <a href="#code/src/main/scala/com/example/save/ExampleDomainObjects.scala"
+              class="shortcut">Savable in the xml package</a> comment out the three import lines:
+        <pre><code>
+import com.example.save.json._
+import spray.json._
+import DefaultJsonProtocol._
+        </code></pre>
+        and uncomment the line:
+    <pre><code>
+import com.example.save.xml._
+    </code></pre>
+    this will activate the xml type classes for Savable instead of the JSON ones. You will also need to
+    edit <a href="#code/src/main/scala/com/example/save/StringSaver.scala"
+            class="shortcut">StringSaver</a> to comment out the line:
+    <pre><code>
+import com.example.save.json._
+    </code></pre>
+    and uncomment the line
+    <pre><code>
+import com.example.save.xml._
+    </code></pre>
+    and then run the app again, you should see XML output instead of JSON output now.
+    </p>
+</div>
+<div>
+    <h2>Suggested Exercises</h2>
+    <p>
+        To get more comfortable with type classes, especially the implementation of them, some of the
+        following exercises may be of interest.
+    </p>
+    <ul>
+        <li>Add an implementation of Savable5 in both
+            <a href="#code/src/main/scala/com/example/save/json/Savable.scala" class="shortcut">JSON
+                Savable</a> and
+            <a href="#code/src/main/scala/com/example/save/xml/Savable.scala" class="shortcut">XML
+                Savable</a> files using the one of the other SavableNs as an example.
+        </li>
+        <li>
+            Using that new Savable5, create a case class that has arity 5, maybe something like this:
+            <pre><code>case class Planet(name: String, pos: Int, color: String, mass: Double, yearLength: Double</code></pre>
+            and define the corresponding Savable companion type class for it in
+            <a href="#code/src/main/scala/com/example/save/ExampleDomainObjects.scala"
+               class="shortcut">Example Domain Objects</a> files using the one of the other SavableNs
+            as an example.
+        </li>
+        <li>
+            Output an instance of that new case class in the
+            <a href="#code/src/main/scala/com/example/save/Demo.scala" class="shortcut">Demo App</a>
+            to make sure it works. Also switch between JSON and XML to make sure it works in both.
+        </li>
+        <li>
+            If you are feeling really keen, improve the XML Savable to require that all type parameters
+            in the SavableN classes also have an XML Savable defined for them. After doing this, you will
+            need to provide type class definitions for
+            <code>Savable[String], Savable[Double], Savable[Int]</code> and <code>Savable[Float]</code>
+            in order to get it to compile now. If you understand why, great, if not, go back and read
+            the section on implicit context again to grok it. Try out your new implementation on some
+            nested Savables in both JSON and XML to check that they now work as expected.
+        </li>
+    </ul>
+</div>
 
 </body>
 </html>

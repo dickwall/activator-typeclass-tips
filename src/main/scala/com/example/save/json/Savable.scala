@@ -17,8 +17,8 @@ abstract class Savable[RECORD <: Product : ClassManifest] {
   // aha! yes - this works!
   implicit val saveableAdapter: Savable[RECORD] = this
 
-  // abstract jsonwriter that must be supplied by subclass
-  implicit val jsonWriter: JsonWriter[RECORD]
+  // abstract jsonFormat that must be supplied by subclass
+  implicit val jsonFormat: JsonFormat[RECORD]
 
   // pull out type name
   val itemName: String = implicitly[ClassManifest[RECORD]].runtimeClass.getSimpleName
@@ -28,22 +28,22 @@ abstract class Savable[RECORD <: Product : ClassManifest] {
 
 abstract class Savable1[A : JsonFormat, RECORD <: Product : ClassManifest] extends Savable[RECORD] {
   def apply(f1: A): RECORD
-  val jsonWriter: JsonWriter[RECORD] = jsonFormat1(this.apply)
+  val jsonFormat: JsonFormat[RECORD] = jsonFormat1(this.apply)
 }
 
 abstract class Savable2[A : JsonFormat, B : JsonFormat, RECORD <: Product : ClassManifest] extends Savable[RECORD] {
   def apply(f1: A, f2: B): RECORD
-  val jsonWriter: JsonWriter[RECORD] = jsonFormat2(this.apply)
+  val jsonFormat: JsonFormat[RECORD] = jsonFormat2(this.apply)
 }
 
 abstract class Savable3[A : JsonFormat, B : JsonFormat, C : JsonFormat, RECORD <: Product : ClassManifest] extends Savable[RECORD] {
   def apply(f1: A, f2: B, f3: C): RECORD
-  val jsonWriter: JsonWriter[RECORD] = jsonFormat3(this.apply)
+  val jsonFormat: JsonFormat[RECORD] = jsonFormat3(this.apply)
 }
 
 abstract class Savable4[A : JsonFormat, B : JsonFormat, C : JsonFormat, D : JsonFormat, RECORD <: Product : ClassManifest] extends Savable[RECORD] {
   def apply(f1: A, f2: B, f3: C, f4: D): RECORD
-  val jsonWriter: JsonWriter[RECORD] = jsonFormat4(this.apply)
+  val jsonFormat: JsonFormat[RECORD] = jsonFormat4(this.apply)
 }
 
 // you get the idea - generate or use a macro if you like
