@@ -91,7 +91,7 @@
     </p>
     <p>
         <code>: T</code>
-        is known as a context bound, and it means that there must be a typeclass for RECORD (in this case)
+        is known as a context bound, and it means that there must be a type class for RECORD (in this case)
         that the compiler can see and use implicitly (or you may choose to fill it in explicitly if you
         like pain). <code>: ClassManifest</code> is the same as having an implicit parameter of type
         <code>ClassManifest[RECORD]</code>, like this:
@@ -102,8 +102,8 @@
         and assigns it to the same ev1 value as used in the implicit parameter example.
     </p>
     <p>
-        Manifests, ClassManifests and ClassTags are typeclasses but they are also known by the Scala
-        compiler and exhibit very useful behavior. When Scala sees a Manifest or Tag typeclass specified
+        Manifests, ClassManifests and ClassTags are type classes but they are also known by the Scala
+        compiler and exhibit very useful behavior. When Scala sees a Manifest or Tag type class specified
         implicitly, it creates one for the type being passed in, so that you can get type information
         that can be used at runtime. Manifests are deep (i.e. for complex container types, they hold
         all of the information of the type parameters in the container type as well) while ClassTags are
